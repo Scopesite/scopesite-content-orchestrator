@@ -4,8 +4,10 @@ import accountsRouter from "./routes/accounts.js";
 import postsRouter from "./routes/posts.js";
 import webhooksRouter from "./routes/webhooks.js";
 
+const CORS = process.env.CORS_ORIGIN?.split(",").map(s => s.trim()) ?? true;
+
 const app = express();
-app.use(cors());
+app.use(cors({ origin: CORS }));
 app.use(express.json({ limit: "5mb" }));
 
 app.get("/health", (_req, res) => {

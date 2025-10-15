@@ -10,6 +10,23 @@ const app = express();
 app.use(cors({ origin: CORS }));
 app.use(express.json({ limit: "5mb" }));
 
+app.get("/", (_req, res) => {
+  res.json({
+    service: "ScopeSite Content Orchestrator",
+    version: "0.1.0",
+    status: "operational",
+    endpoints: {
+      health: "GET /health",
+      workspaces: "GET /workspaces",
+      accounts: "GET /accounts?workspace={id}",
+      bulkSchedule: "POST /posts/bulk",
+      getPosts: "GET /posts?workspace={id}",
+      webhook: "POST /webhooks/contentstudio"
+    },
+    docs: "https://github.com/Scopesite/scopesite-content-orchestrator"
+  });
+});
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "scopesite-content-orchestrator" });
 });

@@ -81,6 +81,10 @@ app.get("/api", (_req, res) => {
   });
 });
 
+app.get("/", (_req, res) => {
+  res.redirect("/admin");
+});
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "scopesite-content-orchestrator" });
 });

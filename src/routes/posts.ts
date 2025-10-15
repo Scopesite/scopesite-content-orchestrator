@@ -114,7 +114,7 @@ router.post("/posts/bulk", async (req, res) => {
     // First, insert/upsert the post record in database
     const { data: existingPost } = await supabase
       .from("posts")
-      .select("id, status, contentstudio_post_id")
+      .select("id, status, contentstudio_post_id, retry_count")
       .eq("orchestrator_id", orchestratorId)
       .single();
 

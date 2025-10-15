@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import accountsRouter from "./routes/accounts.js";
 import postsRouter from "./routes/posts.js";
 import webhooksRouter from "./routes/webhooks.js";
@@ -9,13 +11,16 @@ import mediaRouter from "./routes/media.js";
 import templatesRouter from "./routes/templates.js";
 import configRouter from "./routes/config.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const CORS = process.env.CORS_ORIGIN?.split(",").map(s => s.trim()) ?? true;
 
 const app = express();
 app.use(cors({ origin: CORS }));
 app.use(express.json({ limit: "5mb" }));
 
-app.get("/", (_req, res) => {
+app.get("/api", (_req, res) => {
   res.json({
     service: "ScopeSite Content Orchestrator",
     version: "0.2.0",
@@ -76,6 +81,15 @@ app.use(hashtagsRouter);
 app.use(mediaRouter);
 app.use(templatesRouter);
 app.use(configRouter);
+
+// Serve admin frontend (static files)
+const adminPath = path.join(__dirname, "../admin/dist");
+app.use(express.static(adminPath));
+
+// SPA fallback - serve index.html for all other routes
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(adminPath, "index.html"));
+});
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Orchestrator up on ${port}`));

@@ -10,5 +10,5 @@ dist/
 *.swo
 *~
 admin/node_modules/
-admin/dist/
+# admin/dist/ is included for Railway deployment
 

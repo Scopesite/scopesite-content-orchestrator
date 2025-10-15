@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ScopeSite · Content Orchestrator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="color-scheme" content="dark" />
+    <style>
+      :root { --ss-yellow: #facc15; }
+      .card { @apply rounded-2xl bg-zinc-900/60 border border-zinc-800 shadow-sm; }
+      .metric { @apply text-3xl font-semibold; }
+    </style>
+  </head>
+  <body class="bg-zinc-950 text-zinc-100">
+    <header class="border-b border-zinc-800 sticky top-0 z-10 bg-zinc-950/80 backdrop-blur">
+      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-8 w-8 rounded-lg bg-[var(--ss-yellow)]"></div>
+          <h1 class="text-xl font-bold">ScopeSite · Content Orchestrator</h1>
+        </div>
+        <a class="text-sm text-zinc-400 hover:text-zinc-200 underline" href="https://github.com/Scopesite/scopesite-content-orchestrator" target="_blank" rel="noreferrer">Docs</a>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6 grid gap-6">
+      <!-- Setup Row -->
+      <section class="grid sm:grid-cols-3 gap-4">
+        <div class="card p-5">
+          <h2 class="font-semibold mb-2">Environment</h2>
+          <ul id="envList" class="text-sm text-zinc-400 space-y-1">
+            <li>CONTENTSTUDIO_API_KEY: <span data-env="cs">checking…</span></li>
+            <li>DEFAULT_TIMEZONE: <span data-env="tz">checking…</span></li>
+            <li>ACCOUNT_MAP_JSON: <span data-env="map">checking…</span></li>
+          </ul>
+        </div>
+        <div class="card p-5">
+          <h2 class="font-semibold mb-2">Workspace</h2>
+          <div class="flex gap-2">
+            <select id="wsSelect" class="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm"></select>
+            <button id="refreshWs" class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-sm">↻</button>
+          </div>
+          <p class="text-xs text-zinc-500 mt-2">Pick workspace to load accounts & posts.</p>
+        </div>
+        <div class="card p-5">
+          <h2 class="font-semibold mb-2">Quick Actions</h2>
+          <div class="flex gap-2">
+            <button id="btnHealth" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-black font-semibold">Health</button>
+            <button id="btnAccounts" class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700">Accounts</button>
+            <button id="btnSchedule" class="px-3 py-2 rounded-lg bg-[var(--ss-yellow)] hover:brightness-110 text-black font-semibold">Schedule Demo</button>
+          </div>
+          <p id="actionMsg" class="text-xs text-zinc-400 mt-2"></p>
+        </div>
+      </section>
+
+      <!-- Metrics Row -->
+      <section class="grid sm:grid-cols-4 gap-4">
+        <div class="card p-5">
+          <div class="text-zinc-400 text-sm">Scheduled</div>
+          <div id="mScheduled" class="metric">0</div>
+        </div>
+        <div class="card p-5">
+          <div class="text-zinc-400 text-sm">Published</div>
+          <div id="mPublished" class="metric">0</div>
+        </div>
+        <div class="card p-5">
+          <div class="text-zinc-400 text-sm">Failed</div>
+          <div id="mFailed" class="metric">0</div>
+        </div>
+        <div class="card p-5">
+          <div class="text-zinc-400 text-sm">Pending</div>
+          <div id="mPending" class="metric">0</div>
+        </div>
+      </section>
+
+      <!-- Posts Table -->
+      <section class="card">
+        <div class="p-5 border-b border-zinc-800">
+          <h2 class="font-semibold">Recent Posts</h2>
+        </div>
+        <div class="p-5 overflow-auto">
+          <table class="w-full text-sm">
+            <thead class="text-zinc-400">
+              <tr class="text-left">
+                <th class="py-2">When</th>
+                <th>Channels</th>
+                <th>Title</th>
+                <th>Status</th>
+                <th>ID</th>
+              </tr>
+            </thead>
+            <tbody id="postsBody"></tbody>
+          </table>
+          <div id="noPosts" class="text-zinc-500 text-sm py-6 hidden">No posts yet. Schedule some and they'll show up here.</div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      const $$ = (s) => Array.from(document.querySelectorAll(s));
+      const msg = (t) => $("#actionMsg").textContent = t;
+      const fmt = (d) => new Date(d).toLocaleString('en-GB');
+
+      // Simple env heuristics via /health (add fields server-side later if you like)
+      async function checkEnv() {
+        try {
+          const r = await fetch('/health'); // just a ping
+          const ok = r.ok;
+          $$('[data-env="cs"]').forEach(el => el.textContent = ok ? '✓ present (server-side)' : 'unknown');
+          $$('[data-env="tz"]').forEach(el => el.textContent = (Intl.DateTimeFormat().resolvedOptions().timeZone || 'browser'));
+          $$('[data-env="map"]').forEach(el => el.textContent = 'configured on server');
+        } catch {
+          $$('[data-env="cs"]').forEach(el => el.textContent = 'unknown');
+        }
+      }
+
+      async function loadWorkspaces() {
+        $('#wsSelect').innerHTML = '<option>Loading…</option>';
+        const r = await fetch('/workspaces');
+        if (!r.ok) { msg('Failed to load workspaces'); return; }
+        const data = await r.json();
+        const items = data?.data || data?.workspaces || data || [];
+        const sel = $('#wsSelect');
+        sel.innerHTML = '';
+        items.forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w._id || w.id || w.workspaceId || w.slug || w.name;
+          opt.textContent = w.name || w.title || opt.value;
+          sel.appendChild(opt);
+        });
+        if (sel.value) {
+          loadPosts(sel.value);
+        }
+      }
+
+      async function loadPosts(workspaceId) {
+        msg('Loading posts…');
+        const r = await fetch(`/posts?workspace=${encodeURIComponent(workspaceId)}`);
+        if (!r.ok) { msg('Failed to load posts'); return; }
+        const j = await r.json();
+        const posts = j?.data || j?.posts || j || [];
+
+        // naive status tallies (fix if your API returns statuses differently)
+        let scheduled=0, published=0, failed=0, pending=0;
+        const body = $('#postsBody');
+        body.innerHTML = '';
+        posts.slice(0, 50).forEach(p => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-t border-zinc-800';
+          const status = (p.status || p.state || 'scheduled').toLowerCase();
+          if (status.includes('publish')) published++;
+          else if (status.includes('fail') || status === 'error') failed++;
+          else if (status.includes('pending') || status.includes('queue')) pending++;
+          else scheduled++;
+          tr.innerHTML = `
+            <td class="py-2">${fmt(p.scheduled_at || p.createdAt || Date.now())}</td>
+            <td>${(p.requested_channels || p.channels || p.accounts || []).join(', ')}</td>
+            <td class="truncate max-w-[28ch]">${(p.title || p.body || p.message || '').toString().slice(0,80)}</td>
+            <td class="capitalize">${status}</td>
+            <td class="text-zinc-500">${(p.id || p.post_id || '—').toString().slice(0, 8)}</td>`;
+          body.appendChild(tr);
+        });
+        $('#noPosts').classList.toggle('hidden', posts.length > 0);
+        $('#mScheduled').textContent = scheduled;
+        $('#mPublished').textContent = published;
+        $('#mFailed').textContent = failed;
+        $('#mPending').textContent = pending;
+        msg(`Loaded ${posts.length} posts`);
+      }
+
+      async function listAccounts(workspaceId) {
+        const r = await fetch(`/accounts?workspace=${encodeURIComponent(workspaceId)}`);
+        if (!r.ok) { msg('Failed to load accounts'); return; }
+        const j = await r.json();
+        const accounts = j?.data || j?.accounts || j || [];
+        msg(`Found ${accounts.length} accounts: ${accounts.map(a => a.platform).join(', ')}`);
+      }
+
+      async function scheduleDemo(workspaceId) {
+        const when = new Date(Date.now() + 15*60*1000).toISOString();
+        const payload = {
+          workspaceId,
+          timezone: "Europe/London",
+          posts: [{
+            title: "ScopeSite demo",
+            body: "This is a demo post created from the admin dashboard.",
+            channels: ["linkedin"],   // adjust mapping on server if needed
+            scheduledAt: when,
+            utm: { source: "contentstudio", campaign: "demo" }
+          }]
+        };
+        const r = await fetch('/posts/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) msg(`Scheduled: ${JSON.stringify(j.results || j).slice(0,160)}…`);
+        else msg(`Error: ${JSON.stringify(j).slice(0,160)}…`);
+      }
+
+      // wiring
+      $('#refreshWs').addEventListener('click', loadWorkspaces);
+      $('#wsSelect').addEventListener('change', (e) => loadPosts(e.target.value));
+      $('#btnHealth').addEventListener('click', async () => {
+        const r = await fetch('/health'); msg(r.ok ? 'Healthy ✅' : 'Unhealthy ❌');
+      });
+      $('#btnAccounts').addEventListener('click', () => listAccounts($('#wsSelect').value));
+      $('#btnSchedule').addEventListener('click', () => scheduleDemo($('#wsSelect').value));
+
+      checkEnv().then(loadWorkspaces);
+    </script>
+  </body>
+</html>
+

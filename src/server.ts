@@ -20,16 +20,22 @@ const app = express();
 app.use(cors({ origin: CORS }));
 app.use(express.json({ limit: "5mb" }));
 
-// Serve static admin UI from /public
-const publicPath = path.join(process.cwd(), "public");
-app.use(express.static(publicPath, {
-  extensions: ["html"],
+// Serve React admin UI from /admin/dist
+const adminPath = path.join(process.cwd(), "admin", "dist");
+app.use("/admin", express.static(adminPath, {
   maxAge: "1h",
   setHeaders: (res) => {
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
   }
+}));
+
+// Serve old simple admin from /public
+const publicPath = path.join(process.cwd(), "public");
+app.use(express.static(publicPath, {
+  extensions: ["html"],
+  maxAge: "1h"
 }));
 
 app.get("/api", (_req, res) => {
@@ -89,8 +95,9 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "scopesite-content-orchestrator" });
 });
 
-app.get("/admin", (_req, res) => {
-  res.sendFile(path.join(publicPath, "admin.html"));
+// Serve React admin (SPA fallback)
+app.get("/admin/*", (_req, res) => {
+  res.sendFile(path.join(adminPath, "index.html"));
 });
 
 app.use(accountsRouter);

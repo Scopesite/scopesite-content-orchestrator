@@ -124,6 +124,7 @@ router.post("/posts/bulk", async (req, res) => {
         payload: {
           title: p.title ?? "",
           message: p.body,
+          content: p.body,  // ContentStudio requires 'content' field for some platforms
           accounts,
           scheduled_at: p.scheduledAt,
           timezone,
@@ -204,6 +205,7 @@ router.post("/posts/bulk", async (req, res) => {
     const payload = {
       title: p.title ?? "",
       message: p.body,
+      content: p.body,  // ContentStudio requires 'content' field for some platforms (e.g. LinkedIn)
       accounts,
       scheduled_at: p.scheduledAt,
       timezone,

@@ -75,7 +75,8 @@ router.get("/posts", async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch posts", details: error });
   }
 
-  res.json({ posts: data, total: count, limit: Number(limit), offset: Number(offset) });
+  // Normalize to { data: [...] } with metadata
+  res.json({ data: data || [], total: count || 0, limit: Number(limit), offset: Number(offset) });
 });
 
 // GET single post by ID or orchestrator_id
@@ -104,7 +105,39 @@ router.post("/posts/bulk", async (req, res) => {
   const parse = BulkSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: parse.error.flatten() });
 
-  const { workspaceId, timezone, posts } = parse.data;
+  const { workspaceId, posts } = parse.data;
+  const timezone = parse.data.timezone || process.env.DEFAULT_TIMEZONE || "Europe/London";
+  const dryRun = req.query.dry === "1";
+
+  // Dry-run mode: return expanded payloads without scheduling
+  if (dryRun) {
+    const items = posts.map(p => {
+      const accounts = mapChannelsToAccounts(workspaceId, p.channels);
+      const orchestratorId = idKey(p);
+      return {
+        orchestratorId,
+        workspaceId,
+        timezone,
+        scheduledAt: p.scheduledAt,
+        requestedChannels: p.channels,
+        resolvedAccounts: accounts,
+        payload: {
+          title: p.title ?? "",
+          message: p.body,
+          accounts,
+          scheduled_at: p.scheduledAt,
+          timezone,
+          first_comment: p.firstComment ?? {},
+          media: p.media ?? [],
+          tags: p.tags ?? [],
+          link: p.link ?? null,
+          custom_fields: { ...(p.utm ?? {}), orchestrator_id: orchestratorId }
+        }
+      };
+    });
+    return res.json({ dryRun: true, items });
+  }
+
   const results: any[] = [];
 
   for (const p of posts) {
@@ -196,6 +229,7 @@ router.post("/posts/bulk", async (req, res) => {
         })
         .eq("id", dbPost.id);
 
+      console.log(`✓ Scheduled post ${orchestratorId} → CS:${csPostId} at ${p.scheduledAt}`);
       results.push({
         ok: true,
         id: csPostId,
@@ -217,6 +251,7 @@ router.post("/posts/bulk", async (req, res) => {
         })
         .eq("id", dbPost.id);
 
+      console.error(`✗ Failed post ${orchestratorId}:`, errorMsg);
       results.push({
         ok: false,
         error: errorMsg,
@@ -227,6 +262,8 @@ router.post("/posts/bulk", async (req, res) => {
     }
   }
 
+  const successCount = results.filter(r => r.ok).length;
+  console.log(`Bulk schedule complete: ${successCount}/${results.length} successful`);
   res.json({ results });
 });
 

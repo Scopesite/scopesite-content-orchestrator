@@ -35,67 +35,120 @@ npm run dev
 
 4. **Set environment variables** (see table below)
 
-## Environment Variables
+## Connect to ContentStudio
 
-Create a `.env` file or configure these on Railway:
+### Required Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `CONTENTSTUDIO_API_KEY` | ✅ | - | Your ContentStudio API key (from ContentStudio Dashboard → Settings → API Keys) |
-| `DATABASE_URL` | ✅ | - | PostgreSQL connection string from Supabase |
-| `SUPABASE_ANON_KEY` | ✅ | - | Supabase anonymous key (from Project Settings → API) |
-| `SUPABASE_SERVICE_KEY` | ✅ | - | Supabase service role key (from Project Settings → API) |
-| `PORT` | - | `3000` | Server port (Railway sets automatically) |
-| `NODE_ENV` | - | `development` | Node environment |
-| `CORS_ORIGIN` | - | `*` | Comma-separated allowed origins |
+| `CONTENTSTUDIO_API_KEY` | ✅ | - | Your ContentStudio API key (Dashboard → Settings → API Keys) |
+| `DEFAULT_TIMEZONE` | - | `Europe/London` | Fallback timezone for scheduling |
 | `ACCOUNT_MAP_JSON` | - | `{}` | Channel-to-account ID mapping (see below) |
+| `DATABASE_URL` | ✅ | - | PostgreSQL connection string from Supabase |
+| `SUPABASE_SERVICE_KEY` | ✅ | - | Supabase service role key |
+| `CORS_ORIGIN` | - | `*` | Comma-separated allowed origins (dev: `*`, prod: specific domains) |
+| `PORT` | - | `3000` | Server port (Railway auto-sets) |
 
-### Channel-to-Account Mapping
+### Fetching Workspaces & Accounts
 
-Use `ACCOUNT_MAP_JSON` to map generic channel names to ContentStudio account IDs per workspace:
+**1. Get your workspaces:**
+```bash
+curl https://contentgen.up.railway.app/workspaces | jq '.data[] | {id: ._id, name}'
+```
 
+**2. Get accounts for a workspace:**
+```bash
+# Replace WS_ID with your workspace ID from step 1
+curl "https://contentgen.up.railway.app/accounts?workspace=WS_ID" | jq '.data[] | {platform, name: .account_name, id: ._id}'
+```
+
+**3. Build your ACCOUNT_MAP_JSON:**
+
+Example mapping that routes channel slugs to ContentStudio account IDs:
 ```json
 {
-  "ws_123": {
-    "linkedin": "acc_111",
-    "instagram": ["acc_222", "acc_333"]
+  "689bafde0d2bac56570e9e9b": {
+    "linkedin": "nhMCc6G8ct",
+    "twitter": "1870790545192140800",
+    "instagram": "17841471037952239",
+    "facebook": "10239344454777631",
+    "gmb": "accounts/103369041263560888812/locations/8554869267175457746"
   }
 }
 ```
 
-**Without mapping:** Channels are passed as-is (identity fallback).
-**With mapping:** `"linkedin"` → `"acc_111"`, `"instagram"` → `["acc_222", "acc_333"]`
+**Identity Fallback:** Without mapping, channel slugs are passed as-is to ContentStudio.
 
-To set on Railway, minify the JSON:
+**Set on Railway (minified):**
 ```bash
-ACCOUNT_MAP_JSON={"ws_123":{"linkedin":"acc_111","instagram":["acc_222","acc_333"]}}
+ACCOUNT_MAP_JSON={"689bafde0d2bac56570e9e9b":{"linkedin":"nhMCc6G8ct","twitter":"1870790545192140800"}}
+```
+
+### Security: CORS Origins
+
+**Dev (allow all):**
+```bash
+CORS_ORIGIN=*
+```
+
+**Production (restrict to specific domains):**
+```bash
+CORS_ORIGIN=https://admin.scopesite.com,https://contentgen.up.railway.app
 ```
 
 ## Endpoints
 
 - `GET /health` → health check
-- `GET /workspaces` → list ContentStudio workspaces
-- `GET /accounts?workspace=<id>` → list accounts for a workspace
-- `GET /posts` → list posts with filtering (params: `workspace`, `status`, `limit`, `offset`)
+- `GET /workspaces` → list ContentStudio workspaces (returns `{ data: [...] }`)
+- `GET /accounts?workspace=<id>` → list accounts (returns `{ data: [...] }`, 400 if workspace missing)
+- `GET /posts?workspace=<id>` → list posts (returns `{ data: [...], total, limit, offset }`)
 - `GET /posts/:id` → get single post by UUID or orchestrator_id
-- `POST /posts/bulk` → schedule posts with validation, retries, idempotency, and database tracking
-- `POST /webhooks/contentstudio` → webhook receiver (logs events and updates post status)
+- `POST /posts/bulk` → schedule posts (supports `?dry=1` for payload preview)
+- `POST /webhooks/contentstudio` → webhook receiver
 
-## API Examples
+## Smoke Tests
 
-### Health Check
+Run these to verify connectivity after deployment:
+
 ```bash
-curl https://your-app.railway.app/health
-```
+# 1. Health check
+curl -s https://contentgen.up.railway.app/health
 
-### List Workspaces
-```bash
-curl https://your-app.railway.app/workspaces
-```
+# 2. List workspaces (returns { data: [...] })
+curl -s https://contentgen.up.railway.app/workspaces | jq .
 
-### List Accounts
-```bash
-curl "https://your-app.railway.app/accounts?workspace=ws_123"
+# 3. List accounts (replace WS_ID with real workspace ID)
+curl -s "https://contentgen.up.railway.app/accounts?workspace=WS_ID" | jq .
+
+# 4. Dry-run schedule (no actual posting)
+curl -sX POST "https://contentgen.up.railway.app/posts/bulk?dry=1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspaceId":"WS_ID",
+    "timezone":"Europe/London",
+    "posts":[
+      {
+        "title":"Demo",
+        "body":"Dry run test",
+        "channels":["linkedin"],
+        "scheduledAt":"2025-11-01T09:30:00"
+      }
+    ]
+  }' | jq .
+
+# 5. Live schedule (15 mins from now)
+curl -sX POST https://contentgen.up.railway.app/posts/bulk \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"workspaceId\":\"WS_ID\",
+    \"timezone\":\"Europe/London\",
+    \"posts\":[{
+      \"title\":\"ScopeSite demo\",
+      \"body\":\"Posted via orchestrator\",
+      \"channels\":[\"linkedin\"],
+      \"scheduledAt\":\"$(date -u -d '+15 minutes' +%Y-%m-%dT%H:%M:%SZ)\"
+    }]
+  }" | jq .
 ```
 
 ### Bulk Schedule Posts

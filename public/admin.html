@@ -44,11 +44,15 @@
         </div>
         <div class="card p-5">
           <h2 class="font-semibold mb-2">Quick Actions</h2>
-          <div class="flex gap-2">
-            <button id="btnHealth" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-black font-semibold">Health</button>
-            <button id="btnAccounts" class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700">Accounts</button>
-            <button id="btnSchedule" class="px-3 py-2 rounded-lg bg-[var(--ss-yellow)] hover:brightness-110 text-black font-semibold">Schedule Demo</button>
+          <div class="flex gap-2 mb-2">
+            <button id="btnHealth" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-black font-semibold text-sm">Health</button>
+            <button id="btnAccounts" class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-sm">Accounts</button>
+            <button id="btnSchedule" class="px-3 py-2 rounded-lg bg-[var(--ss-yellow)] hover:brightness-110 text-black font-semibold text-sm">Schedule Demo</button>
           </div>
+          <label class="flex items-center gap-2 text-xs text-zinc-400">
+            <input type="checkbox" id="dryRunCheck" class="rounded" />
+            <span>Dry-Run (show payload only)</span>
+          </label>
           <p id="actionMsg" class="text-xs text-zinc-400 mt-2"></p>
         </div>
       </section>
@@ -70,6 +74,26 @@
         <div class="card p-5">
           <div class="text-zinc-400 text-sm">Pending</div>
           <div id="mPending" class="metric">0</div>
+        </div>
+      </section>
+
+      <!-- Accounts Table -->
+      <section id="accountsSection" class="card hidden">
+        <div class="p-5 border-b border-zinc-800">
+          <h2 class="font-semibold">Connected Accounts</h2>
+        </div>
+        <div class="p-5">
+          <table class="w-full text-sm">
+            <thead class="text-zinc-400">
+              <tr class="text-left">
+                <th class="py-2">Platform</th>
+                <th>Account Name</th>
+                <th>ID</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="accountsBody"></tbody>
+          </table>
         </div>
       </section>
 
@@ -119,10 +143,15 @@
         $('#wsSelect').innerHTML = '<option>Loading…</option>';
         const r = await fetch('/workspaces');
         if (!r.ok) { msg('Failed to load workspaces'); return; }
-        const data = await r.json();
-        const items = data?.data || data?.workspaces || data || [];
+        const json = await r.json();
+        const items = json?.data || [];
         const sel = $('#wsSelect');
         sel.innerHTML = '';
+        if (items.length === 0) {
+          sel.innerHTML = '<option>No workspaces found</option>';
+          msg('No workspaces configured');
+          return;
+        }
         items.forEach(w => {
           const opt = document.createElement('option');
           opt.value = w._id || w.id || w.workspaceId || w.slug || w.name;
@@ -132,6 +161,7 @@
         if (sel.value) {
           loadPosts(sel.value);
         }
+        msg(`Loaded ${items.length} workspace${items.length !== 1 ? 's' : ''}`);
       }
 
       async function loadPosts(workspaceId) {
@@ -139,7 +169,7 @@
         const r = await fetch(`/posts?workspace=${encodeURIComponent(workspaceId)}`);
         if (!r.ok) { msg('Failed to load posts'); return; }
         const j = await r.json();
-        const posts = j?.data || j?.posts || j || [];
+        const posts = j?.data || [];
 
         // naive status tallies (fix if your API returns statuses differently)
         let scheduled=0, published=0, failed=0, pending=0;
@@ -170,34 +200,75 @@
       }
 
       async function listAccounts(workspaceId) {
+        msg('Loading accounts…');
         const r = await fetch(`/accounts?workspace=${encodeURIComponent(workspaceId)}`);
         if (!r.ok) { msg('Failed to load accounts'); return; }
         const j = await r.json();
-        const accounts = j?.data || j?.accounts || j || [];
-        msg(`Found ${accounts.length} accounts: ${accounts.map(a => a.platform).join(', ')}`);
+        const accounts = j?.data || [];
+        
+        const body = $('#accountsBody');
+        body.innerHTML = '';
+        const section = $('#accountsSection');
+        
+        if (accounts.length === 0) {
+          msg('No accounts found for this workspace');
+          section.classList.add('hidden');
+          return;
+        }
+        
+        section.classList.remove('hidden');
+        accounts.slice(0, 6).forEach(a => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-t border-zinc-800';
+          const status = a.validity === 'valid' ? '<span class="text-emerald-500">✓ Active</span>' : '<span class="text-red-500">✗ Invalid</span>';
+          tr.innerHTML = `
+            <td class="py-2 capitalize">${a.platform || '—'}</td>
+            <td>${a.account_name || a.name || '—'}</td>
+            <td class="text-zinc-500 font-mono text-xs">${(a._id || a.id || '—').toString().slice(0, 20)}</td>
+            <td>${status}</td>`;
+          body.appendChild(tr);
+        });
+        msg(`Found ${accounts.length} account${accounts.length !== 1 ? 's' : ''}: ${accounts.map(a => a.platform).join(', ')}`);
       }
 
       async function scheduleDemo(workspaceId) {
         const when = new Date(Date.now() + 15*60*1000).toISOString();
+        const isDryRun = $('#dryRunCheck').checked;
         const payload = {
           workspaceId,
           timezone: "Europe/London",
           posts: [{
             title: "ScopeSite demo",
             body: "This is a demo post created from the admin dashboard.",
-            channels: ["linkedin"],   // adjust mapping on server if needed
+            channels: ["linkedin"],
             scheduledAt: when,
             utm: { source: "contentstudio", campaign: "demo" }
           }]
         };
-        const r = await fetch('/posts/bulk', {
+        
+        const url = isDryRun ? '/posts/bulk?dry=1' : '/posts/bulk';
+        msg(isDryRun ? 'Running dry-run…' : 'Scheduling post…');
+        
+        const r = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         const j = await r.json().catch(() => ({}));
-        if (r.ok) msg(`Scheduled: ${JSON.stringify(j.results || j).slice(0,160)}…`);
-        else msg(`Error: ${JSON.stringify(j).slice(0,160)}…`);
+        
+        if (r.ok) {
+          if (isDryRun) {
+            msg('Dry-run complete. Check console for expanded payload.');
+            console.log('Dry-run result:', JSON.stringify(j, null, 2));
+            alert(`Dry-run result:\n\n${JSON.stringify(j, null, 2)}`);
+          } else {
+            const success = j.results?.filter((x: any) => x.ok).length || 0;
+            msg(`✓ Scheduled ${success}/${j.results?.length || 0} post(s) for ${new Date(when).toLocaleString('en-GB')}`);
+            loadPosts(workspaceId); // refresh
+          }
+        } else {
+          msg(`Error: ${j.error || JSON.stringify(j).slice(0,100)}`);
+        }
       }
 
       // wiring

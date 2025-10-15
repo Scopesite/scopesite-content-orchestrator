@@ -1,5 +1,5 @@
 node_modules/
-dist/
+/dist/
 .env
 .env.local
 *.log
@@ -10,5 +10,4 @@ dist/
 *.swo
 *~
 admin/node_modules/
-# admin/dist/ is included for Railway deployment
 

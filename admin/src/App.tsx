@@ -71,7 +71,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Router>
+    <Router basename="/admin">
       <Layout>
         <Routes>
           <Route path="/" element={<SetupPage />} />

@@ -86,6 +86,17 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "scopesite-content-orchestrator" });
 });
 
+// Serve React admin static files (JS, CSS, images) - MUST come before API routes
+app.use("/admin", express.static(adminPath, {
+  maxAge: "1h",
+  index: false, // Don't serve index.html automatically
+  setHeaders: (res) => {
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+  }
+}));
+
 // API routes
 app.use(accountsRouter);
 app.use(postsRouter);
@@ -96,17 +107,8 @@ app.use(mediaRouter);
 app.use(templatesRouter);
 app.use(configRouter);
 
-// Serve React admin static files (JS, CSS, images)
-app.use("/admin", express.static(adminPath, {
-  maxAge: "1h",
-  setHeaders: (res) => {
-    res.setHeader("X-Frame-Options", "SAMEORIGIN");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Referrer-Policy", "no-referrer");
-  }
-}));
-
 // SPA fallback: serve index.html for all /admin routes (client-side routing)
+// This catches routes that didn't match static files or API endpoints
 app.get("/admin*", (_req, res) => {
   res.sendFile(path.join(adminPath, "index.html"));
 });

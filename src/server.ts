@@ -20,23 +20,14 @@ const app = express();
 app.use(cors({ origin: CORS }));
 app.use(express.json({ limit: "5mb" }));
 
-// Serve React admin UI from /admin/dist
+// Paths
 const adminPath = path.join(process.cwd(), "admin", "dist");
-app.use("/admin", express.static(adminPath, {
-  maxAge: "1h",
-  setHeaders: (res) => {
-    res.setHeader("X-Frame-Options", "SAMEORIGIN");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Referrer-Policy", "no-referrer");
-  }
-}));
-
-// Serve old simple admin from /public
 const publicPath = path.join(process.cwd(), "public");
-app.use(express.static(publicPath, {
-  extensions: ["html"],
-  maxAge: "1h"
-}));
+
+// Serve old simple admin from /public (legacy)
+app.get("/admin.html", (_req, res) => {
+  res.sendFile(path.join(publicPath, "admin.html"));
+});
 
 app.get("/api", (_req, res) => {
   res.json({
@@ -95,11 +86,7 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "scopesite-content-orchestrator" });
 });
 
-// Serve React admin (SPA fallback)
-app.get("/admin/*", (_req, res) => {
-  res.sendFile(path.join(adminPath, "index.html"));
-});
-
+// API routes
 app.use(accountsRouter);
 app.use(postsRouter);
 app.use(webhooksRouter);
@@ -108,6 +95,21 @@ app.use(hashtagsRouter);
 app.use(mediaRouter);
 app.use(templatesRouter);
 app.use(configRouter);
+
+// Serve React admin static files (JS, CSS, images)
+app.use("/admin", express.static(adminPath, {
+  maxAge: "1h",
+  setHeaders: (res) => {
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+  }
+}));
+
+// SPA fallback: serve index.html for all /admin routes (client-side routing)
+app.get("/admin*", (_req, res) => {
+  res.sendFile(path.join(adminPath, "index.html"));
+});
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Orchestrator up on ${port}`));

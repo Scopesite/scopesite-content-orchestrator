@@ -97,6 +97,16 @@ app.use(templatesRouter);
 app.use(configRouter);
 
 // Serve React admin static files (assets like JS, CSS, images)
+app.use("/admin/assets", express.static(path.join(adminPath, "assets"), {
+  maxAge: "1h",
+  setHeaders: (res) => {
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+  }
+}));
+
+// Serve other static files from admin dist
 app.use("/admin", express.static(adminPath, {
   maxAge: "1h",
   index: false,
@@ -107,13 +117,17 @@ app.use("/admin", express.static(adminPath, {
   }
 }));
 
-// SPA fallback: For any /admin route that wasn't a static file or API, serve the React app
-// This handles client-side routing (e.g., /admin/, /admin/mapping, /admin/plan)
-app.get("/admin/*", (_req, res) => {
+// SPA fallback: serve index.html for admin routes
+app.get("/admin", (_req, res) => {
   res.sendFile(path.join(adminPath, "index.html"));
 });
 
-app.get("/admin", (_req, res) => {
+app.get("/admin/", (_req, res) => {
+  res.sendFile(path.join(adminPath, "index.html"));
+});
+
+// Catch-all for client-side routing (must be last)
+app.get("/admin/*", (_req, res) => {
   res.sendFile(path.join(adminPath, "index.html"));
 });
 

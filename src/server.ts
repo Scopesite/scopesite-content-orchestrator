@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "node:fs";
 import accountsRouter from "./routes/accounts.js";
 import postsRouter from "./routes/posts.js";
 import webhooksRouter from "./routes/webhooks.js";
@@ -22,6 +23,39 @@ app.use(express.json({ limit: "5mb" }));
 
 // Paths
 const adminPath = path.join(process.cwd(), "admin", "dist");
+
+// Debug toggles
+const DEBUG_ADMIN = process.env.DEBUG_ADMIN === "1";
+
+function verifyAdminBuildOnStartup() {
+  try {
+    const indexHtmlPath = path.join(adminPath, "index.html");
+    const existsIndex = fs.existsSync(indexHtmlPath);
+    const assetsDir = path.join(adminPath, "assets");
+    const existsAssets = fs.existsSync(assetsDir);
+    let jsRefs: string[] = [];
+    let cssRefs: string[] = [];
+    if (existsIndex) {
+      const html = fs.readFileSync(indexHtmlPath, "utf8");
+      jsRefs = [...html.matchAll(/\/admin\/assets\/([A-Za-z0-9_-]+\.js)/g)].map(m => m[1]);
+      cssRefs = [...html.matchAll(/\/admin\/assets\/([A-Za-z0-9_-]+\.css)/g)].map(m => m[1]);
+    }
+    console.log("[admin] adminPath:", adminPath);
+    console.log("[admin] index.html:", existsIndex ? "present" : "missing");
+    console.log("[admin] assets dir:", existsAssets ? "present" : "missing");
+    console.log("[admin] js refs:", jsRefs.join(", "));
+    if (existsAssets) {
+      jsRefs.forEach(f => {
+        const p = path.join(assetsDir, f);
+        console.log("[admin] js exists:", f, fs.existsSync(p));
+      });
+    }
+  } catch (e: any) {
+    console.warn("[admin] startup verify failed:", e?.message || String(e));
+  }
+}
+
+verifyAdminBuildOnStartup();
 
 app.get("/api", (_req, res) => {
   res.json({
@@ -127,7 +161,6 @@ app.get("/admin*", (req, res, next) => {
 // Optional: assets health endpoint for debugging
 app.get("/admin/_assets-health", (_req, res) => {
   try {
-    const fs = require("fs");
     const indexHtml = fs.readFileSync(path.join(adminPath, "index.html"), "utf8");
     const js = Array.from(indexHtml.matchAll(/\/admin\/assets\/([A-Za-z0-9_-]+\.js)/g)).map((m: any) => m[1]);
     const css = Array.from(indexHtml.matchAll(/\/admin\/assets\/([A-Za-z0-9_-]+\.css)/g)).map((m: any) => m[1]);
@@ -136,6 +169,29 @@ app.get("/admin/_assets-health", (_req, res) => {
     res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
 });
+
+// Smoke endpoint to confirm process and settings
+app.get("/__smoke", (_req, res) => {
+  res.json({
+    ok: true,
+    pid: process.pid,
+    node: process.version,
+    env: {
+      NODE_ENV: process.env.NODE_ENV || "",
+      DEBUG_ADMIN: process.env.DEBUG_ADMIN || "",
+    }
+  });
+});
+
+// Optional verbose request logging (disabled by default)
+if (DEBUG_ADMIN) {
+  app.use((req, _res, next) => {
+    if (req.path.startsWith('/admin')) {
+      console.log(`[admin] ${req.method} ${req.path}`);
+    }
+    next();
+  });
+}
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Orchestrator up on ${port}`));

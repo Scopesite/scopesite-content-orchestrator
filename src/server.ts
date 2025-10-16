@@ -22,12 +22,6 @@ app.use(express.json({ limit: "5mb" }));
 
 // Paths
 const adminPath = path.join(process.cwd(), "admin", "dist");
-const publicPath = path.join(process.cwd(), "public");
-
-// Serve old simple admin from /public (legacy)
-app.get("/admin.html", (_req, res) => {
-  res.sendFile(path.join(publicPath, "admin.html"));
-});
 
 app.get("/api", (_req, res) => {
   res.json({
@@ -86,7 +80,7 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "scopesite-content-orchestrator" });
 });
 
-// API routes FIRST - so they always match before anything else
+// API routes
 app.use(accountsRouter);
 app.use(postsRouter);
 app.use(webhooksRouter);
@@ -96,20 +90,9 @@ app.use(mediaRouter);
 app.use(templatesRouter);
 app.use(configRouter);
 
-// Serve React admin static files (assets like JS, CSS, images)
-app.use("/admin/assets", express.static(path.join(adminPath, "assets"), {
-  maxAge: "1h",
-  setHeaders: (res) => {
-    res.setHeader("X-Frame-Options", "SAMEORIGIN");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Referrer-Policy", "no-referrer");
-  }
-}));
-
-// Serve other static files from admin dist
+// Serve React admin static files
 app.use("/admin", express.static(adminPath, {
   maxAge: "1h",
-  index: false,
   setHeaders: (res) => {
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -117,17 +100,8 @@ app.use("/admin", express.static(adminPath, {
   }
 }));
 
-// SPA fallback: serve index.html for admin routes
-app.get("/admin", (_req, res) => {
-  res.sendFile(path.join(adminPath, "index.html"));
-});
-
-app.get("/admin/", (_req, res) => {
-  res.sendFile(path.join(adminPath, "index.html"));
-});
-
-// Catch-all for client-side routing (must be last)
-app.get("/admin/*", (_req, res) => {
+// SPA fallback for client-side routing
+app.get("/admin*", (_req, res) => {
   res.sendFile(path.join(adminPath, "index.html"));
 });
 

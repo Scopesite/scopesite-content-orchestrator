@@ -10,4 +10,5 @@ node_modules/
 *.swo
 *~
 admin/node_modules/
+admin/dist/
 

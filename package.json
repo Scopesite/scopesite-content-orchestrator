@@ -11,6 +11,7 @@
     "build:admin": "npm ci --prefix admin && npm run build --prefix admin",
     "build:server": "tsc -p .",
     "build": "npm run build:admin && npm run build:server && node scripts/verify-admin-build.cjs",
+    "prestart": "node scripts/prestart-build.cjs",
     "start": "node dist/server.js",
     "check": "tsc -p . --noEmit"
   },

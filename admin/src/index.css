@@ -2,28 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Dark neon theme */
 :root {
+  color-scheme: dark;
+  --bg: #0b0f1a;       /* deep slate */
+  --panel: #0f172a;    /* slate-900 */
+  --border: #1f2a44;   /* slate-800 */
+  --text: #e5e7eb;     /* gray-200 */
+  --muted: #94a3b8;    /* slate-400 */
+  --glow: #22d3ee;     /* cyan-400 */
+  --glow2: #a78bfa;    /* violet-400 */
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  
-  color-scheme: light;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-  
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+html, body, #root { height: 100%; }
+
 body {
   margin: 0;
-  display: flex;
   min-width: 320px;
   min-height: 100vh;
+  background: radial-gradient(1200px 800px at 20% -10%, rgba(34,211,238,0.07), transparent 60%),
+              radial-gradient(900px 700px at 120% 10%, rgba(167,139,250,0.06), transparent 60%),
+              var(--bg);
+  color: var(--text);
 }
 
-#root {
-  width: 100%;
+#root { width: 100%; }
+
+/* Glow utilities */
+.glow-text {
+  text-shadow: 0 0 12px rgba(34,211,238,0.35), 0 0 28px rgba(167,139,250,0.2);
 }
+
+.btn-glow {
+  position: relative;
+  background: linear-gradient(90deg, rgba(34,211,238,0.15), rgba(167,139,250,0.15));
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.btn-glow:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 18px rgba(34,211,238,0.35), 0 0 32px rgba(167,139,250,0.25);
+  background: linear-gradient(90deg, rgba(34,211,238,0.22), rgba(167,139,250,0.22));
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+/* Subtle float-in */
+@keyframes floatIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-float-in { animation: floatIn .35s ease both; }

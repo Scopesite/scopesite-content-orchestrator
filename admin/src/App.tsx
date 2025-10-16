@@ -8,6 +8,7 @@ import MediaPage from './pages/MediaPage';
 import HashtagsPage from './pages/HashtagsPage';
 import WindowsPage from './pages/WindowsPage';
 import StatusPage from './pages/StatusPage';
+import './styles/tokens.css';
 import './index.css';
 
 function Layout({ children }: { children: React.ReactNode }) {

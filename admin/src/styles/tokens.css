@@ -1,0 +1,25 @@
+/* Design tokens for dark theme */
+:root {
+  color-scheme: dark;
+  --bg: #0b0f1a;
+  --panel: #0f172a;
+  --panel-2: #111827;
+  --border: #1f2a44;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --accent: #22d3ee;   /* cyan-400 */
+  --accent-2: #a78bfa; /* violet-400 */
+  --success: #34d399;
+  --danger: #f87171;
+  --radius: 12px;
+  --shadow-soft: 0 6px 20px rgba(2, 8, 23, 0.35);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    --motion-fast: 150ms;
+    --motion: 220ms;
+    --easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+

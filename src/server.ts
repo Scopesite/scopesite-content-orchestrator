@@ -90,24 +90,51 @@ app.use(mediaRouter);
 app.use(templatesRouter);
 app.use(configRouter);
 
-// Serve React admin static files
+// Serve React admin static files (assets)
 app.use("/admin", express.static(adminPath, {
-  maxAge: "1h",
   index: false,
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
+    // Cache assets aggressively, but never cache HTML
+    if (filePath.endsWith(".html")) {
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    }
   }
 }));
 
+function sendAdminIndex(res: express.Response) {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.sendFile(path.join(adminPath, "index.html"));
+}
+
+// Explicit index routes
+app.get(["/admin", "/admin/", "/admin/index.html"], (_req, res) => {
+  sendAdminIndex(res);
+});
+
 // SPA fallback for client-side routing - only for non-asset requests
 app.get("/admin*", (req, res, next) => {
-  // Skip if it's a static asset request
   if (req.path.includes('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
     return next();
   }
-  res.sendFile(path.join(adminPath, "index.html"));
+  sendAdminIndex(res);
+});
+
+// Optional: assets health endpoint for debugging
+app.get("/admin/_assets-health", (_req, res) => {
+  try {
+    const fs = require("fs");
+    const indexHtml = fs.readFileSync(path.join(adminPath, "index.html"), "utf8");
+    const js = Array.from(indexHtml.matchAll(/\/admin\/assets\/([A-Za-z0-9_-]+\.js)/g)).map((m: any) => m[1]);
+    const css = Array.from(indexHtml.matchAll(/\/admin\/assets\/([A-Za-z0-9_-]+\.css)/g)).map((m: any) => m[1]);
+    res.json({ ok: true, js, css });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
 });
 
 const port = process.env.PORT || 3000;

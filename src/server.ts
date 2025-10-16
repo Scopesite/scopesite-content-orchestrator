@@ -93,6 +93,7 @@ app.use(configRouter);
 // Serve React admin static files
 app.use("/admin", express.static(adminPath, {
   maxAge: "1h",
+  index: false,
   setHeaders: (res) => {
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -100,8 +101,12 @@ app.use("/admin", express.static(adminPath, {
   }
 }));
 
-// SPA fallback for client-side routing
-app.get("/admin*", (_req, res) => {
+// SPA fallback for client-side routing - only for non-asset requests
+app.get("/admin*", (req, res, next) => {
+  // Skip if it's a static asset request
+  if (req.path.includes('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
+    return next();
+  }
   res.sendFile(path.join(adminPath, "index.html"));
 });
 

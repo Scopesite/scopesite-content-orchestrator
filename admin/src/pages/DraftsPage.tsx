@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
+import { Button } from '../components/ui/Button';
+import { Card, CardBody } from '../components/ui/Card';
 
 export default function DraftsPage() {
   const [filter, setFilter] = useState<string>('all');
@@ -13,36 +15,34 @@ export default function DraftsPage() {
   ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto text-[var(--text)]">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Drafts & Approvals</h1>
-        <p className="text-gray-600">Manage and approve draft posts before scheduling</p>
+        <h1 className="text-3xl font-bold glow-text mb-2">Drafts & Approvals</h1>
+        <p className="text-[var(--muted)]">Manage and approve draft posts before scheduling</p>
       </div>
 
       {/* Filters */}
       <div className="mb-6 flex gap-2">
         {statusFilters.map((status) => (
-          <button
+          <Button
             key={status.value}
             onClick={() => setFilter(status.value)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === status.value
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
+            variant={filter === status.value ? 'primary' : 'secondary'}
           >
             {status.label}
-          </button>
+          </Button>
         ))}
       </div>
 
       {/* Drafts List */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="text-center py-12 text-gray-500">
-          <FileText size={48} className="mx-auto mb-4 text-gray-400" />
-          <p>No drafts yet. Create posts in the Planner to see them here.</p>
-        </div>
-      </div>
+      <Card className="animate-float-in">
+        <CardBody>
+          <div className="text-center py-12 text-[var(--muted)]">
+            <FileText size={48} className="mx-auto mb-4 text-[var(--muted)]" />
+            <p>No drafts yet. Create posts in the Planner to see them here.</p>
+          </div>
+        </CardBody>
+      </Card>
     </div>
   );
 }
